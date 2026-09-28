@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environment
+.venv/
+venv/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Ruff
+.ruff_cache/
+
+# Environment variables
+.env
+
+# AWS SAM
+.aws-sam/
+
+# AWS
+.aws/
+
+# VS Code
+.vscode/
+
+# Operating system
+.DS_Store
+Thumbs.db
