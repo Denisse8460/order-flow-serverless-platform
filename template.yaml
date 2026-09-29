@@ -1,0 +1,64 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+
+Description: OrderFlow - Serverless order processing worker
+
+Parameters:
+  DynamoDBTableName:
+    Type: String
+    Default: orderflow-orders-dev
+
+  OrderQueueArn:
+    Type: String
+    Description: ARN of the existing OrderFlow SQS queue
+
+Globals:
+  Function:
+    Runtime: python3.13
+    Timeout: 30
+    MemorySize: 256
+    Architectures:
+      - x86_64
+
+Resources:
+  OrderProcessorFunction:
+    Type: AWS::Serverless::Function
+
+    Properties:
+      FunctionName: orderflow-order-processor-dev
+
+      CodeUri: .lambda-package/
+
+      Handler: src.handlers.process_order_handler.lambda_handler
+
+      Environment:
+        Variables:
+          ORDERFLOW_DYNAMODB_TABLE: !Ref DynamoDBTableName
+
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref DynamoDBTableName
+
+        - Statement:
+            - Effect: Allow
+              Action:
+                - sqs:ReceiveMessage
+                - sqs:DeleteMessage
+                - sqs:GetQueueAttributes
+                - sqs:ChangeMessageVisibility
+              Resource: !Ref OrderQueueArn
+
+      Events:
+        OrderQueue:
+          Type: SQS
+          Properties:
+            Queue: !Ref OrderQueueArn
+            BatchSize: 10
+            Enabled: true
+            FunctionResponseTypes:
+              - ReportBatchItemFailures
+
+Outputs:
+  OrderProcessorFunctionArn:
+    Description: ARN of the OrderFlow processor Lambda
+    Value: !GetAtt OrderProcessorFunction.Arn

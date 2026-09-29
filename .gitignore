@@ -30,3 +30,6 @@ htmlcov/
 # Operating system
 .DS_Store
 Thumbs.db
+
+.aws-sam/
+.lambda-package/
