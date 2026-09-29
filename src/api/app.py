@@ -6,11 +6,8 @@ from src.api.schemas import (
     OrderResponse,
     OrderStatusUpdate,
 )
+from src.bootstrap import create_order_service
 from src.domain.order import Order, OrderItem
-from src.repositories.in_memory_order_repository import (
-    InMemoryOrderRepository,
-)
-from src.services.order_queue import OrderPriorityQueue
 from src.services.order_service import (
     OrderNotFoundError,
     OrderService,
@@ -19,11 +16,9 @@ from src.services.priority_service import PriorityService
 
 
 def order_to_response(order: Order) -> OrderResponse:
-
     return OrderResponse(
         order_id=order.order_id,
         customer_id=order.customer_id,
-
         items=[
             OrderItemResponse(
                 product_id=item.product_id,
@@ -33,46 +28,29 @@ def order_to_response(order: Order) -> OrderResponse:
             )
             for item in order.items
         ],
-
         is_prime=order.is_prime,
         delivery_type=order.delivery_type,
         status=order.status,
         created_at=order.created_at,
-
         total=order.total(),
-
-        priority_score=(
-            PriorityService.calculate_priority(order)
-        ),
+        priority_score=PriorityService.calculate_priority(order),
     )
 
 
 def create_app(
-    service: OrderService | None = None
+    service: OrderService | None = None,
 ) -> FastAPI:
-
     if service is None:
-
-        repository = InMemoryOrderRepository()
-
-        queue = OrderPriorityQueue()
-
-        service = OrderService(
-            repository=repository,
-            queue=queue,
-        )
+        service = create_order_service()
 
     app = FastAPI(
         title="OrderFlow API",
-        description=(
-            "Resilient order processing platform."
-        ),
+        description="Resilient order processing platform.",
         version="0.1.0",
     )
 
     @app.get("/health")
     def health_check():
-
         return {
             "status": "healthy"
         }
@@ -83,9 +61,8 @@ def create_app(
         status_code=status.HTTP_201_CREATED,
     )
     def create_order(
-        payload: OrderCreateRequest
+        payload: OrderCreateRequest,
     ):
-
         items = [
             OrderItem(
                 product_id=item.product_id,
@@ -109,7 +86,6 @@ def create_app(
         response_model=list[OrderResponse],
     )
     def list_orders():
-
         orders = service.list_orders()
 
         return [
@@ -121,14 +97,14 @@ def create_app(
         "/orders/{order_id}",
         response_model=OrderResponse,
     )
-    def get_order(order_id: str):
-
+    def get_order(
+        order_id: str,
+    ):
         try:
-
-            order = service.get_order(order_id)
-
+            order = service.get_order(
+                order_id
+            )
         except OrderNotFoundError as exc:
-
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=str(exc),
@@ -144,16 +120,12 @@ def create_app(
         order_id: str,
         payload: OrderStatusUpdate,
     ):
-
         try:
-
             order = service.update_status(
                 order_id=order_id,
                 status=payload.status,
             )
-
         except OrderNotFoundError as exc:
-
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=str(exc),
