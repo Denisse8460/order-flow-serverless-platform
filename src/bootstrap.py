@@ -9,6 +9,7 @@ from src.repositories.in_memory_order_repository import (
 )
 from src.services.order_queue import OrderPriorityQueue
 from src.services.order_service import OrderService
+from src.services.sqs_order_queue import SQSOrderQueue
 
 
 def create_order_service() -> OrderService:
@@ -37,7 +38,31 @@ def create_order_service() -> OrderService:
             f"{settings.repository_backend}"
         )
 
-    queue = OrderPriorityQueue()
+    if settings.queue_backend == "memory":
+        queue = OrderPriorityQueue()
+
+    elif settings.queue_backend == "sqs":
+        if not settings.sqs_queue_url:
+            raise ValueError(
+                "ORDERFLOW_SQS_QUEUE_URL is required "
+                "when ORDERFLOW_QUEUE=sqs"
+            )
+
+        sqs_client = boto3.client(
+            "sqs",
+            region_name=settings.aws_region,
+        )
+
+        queue = SQSOrderQueue(
+            client=sqs_client,
+            queue_url=settings.sqs_queue_url,
+        )
+
+    else:
+        raise ValueError(
+            "Unsupported queue backend: "
+            f"{settings.queue_backend}"
+        )
 
     return OrderService(
         repository=repository,

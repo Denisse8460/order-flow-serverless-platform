@@ -1,6 +1,6 @@
 from src.domain.order import Order, OrderItem, OrderStatus
 from src.repositories.order_repository import OrderRepository
-from src.services.order_queue import OrderPriorityQueue
+from src.services.order_queue import OrderQueue
 
 
 class OrderNotFoundError(Exception):
@@ -8,11 +8,10 @@ class OrderNotFoundError(Exception):
 
 
 class OrderService:
-
     def __init__(
         self,
         repository: OrderRepository,
-        queue: OrderPriorityQueue
+        queue: OrderQueue,
     ):
         self.repository = repository
         self.queue = queue
@@ -22,14 +21,13 @@ class OrderService:
         customer_id: str,
         items: list[OrderItem],
         is_prime: bool = False,
-        delivery_type: str = "standard"
+        delivery_type: str = "standard",
     ) -> Order:
-
         order = Order(
             customer_id=customer_id,
             items=items,
             is_prime=is_prime,
-            delivery_type=delivery_type
+            delivery_type=delivery_type,
         )
 
         self.repository.save(order)
@@ -37,8 +35,10 @@ class OrderService:
 
         return order
 
-    def get_order(self, order_id: str) -> Order:
-
+    def get_order(
+        self,
+        order_id: str,
+    ) -> Order:
         order = self.repository.get_by_id(order_id)
 
         if order is None:
@@ -54,9 +54,8 @@ class OrderService:
     def update_status(
         self,
         order_id: str,
-        status: OrderStatus
+        status: OrderStatus,
     ) -> Order:
-
         order = self.get_order(order_id)
 
         order.status = status
