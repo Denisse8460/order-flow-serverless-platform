@@ -1,5 +1,6 @@
 from src.domain.order import Order
 
+
 class PriorityService:
 
     @staticmethod
@@ -7,11 +8,11 @@ class PriorityService:
         score = 0
 
         if order.is_prime:
-            score += 40  # Prime customers get a higher priority
+            score += 40
 
-        if order.delivery_type == "same-day":
-            score += 30  # Express delivery gets a higher priority
-        elif order.delivery_type == "next-day":
+        if order.delivery_type == "same_day":
+            score += 30
+        elif order.delivery_type == "next_day":
             score += 20
 
         total = order.total()

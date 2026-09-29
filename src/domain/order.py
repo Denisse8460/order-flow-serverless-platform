@@ -1,8 +1,7 @@
-from dataclasses import dataclass, field
-from datetime import datetime
-from enum import Enum
-from typing import List
 import uuid
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from enum import Enum
 
 
 class OrderStatus(str, Enum):
@@ -25,7 +24,7 @@ class OrderItem:
 @dataclass
 class Order:
     customer_id: str
-    items: List[OrderItem]
+    items: list[OrderItem]
 
     is_prime: bool = False
     delivery_type: str = "standard"
@@ -37,7 +36,7 @@ class Order:
     status: OrderStatus = OrderStatus.PENDING
 
     created_at: datetime = field(
-        default_factory=datetime.utcnow
+        default_factory=lambda: datetime.now(UTC)
     )
 
     def total(self) -> float:
