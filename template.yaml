@@ -16,6 +16,14 @@ Parameters:
     Type: String
     Description: URL of the existing OrderFlow SQS queue
 
+  OrderQueueName:
+    Type: String
+    Default: orderflow-orders-dev
+
+  OrderDlqName:
+    Type: String
+    Default: orderflow-orders-dlq-dev
+
 
 Globals:
   Function:
@@ -36,7 +44,6 @@ Resources:
 
   OrderApiFunction:
     Type: AWS::Serverless::Function
-
     Properties:
       FunctionName: orderflow-api-dev
 
@@ -67,12 +74,10 @@ Resources:
           Type: HttpApi
           Properties:
             ApiId: !Ref OrderFlowHttpApi
-            PayloadFormatVersion: "2.0"
 
 
   OrderProcessorFunction:
     Type: AWS::Serverless::Function
-
     Properties:
       FunctionName: orderflow-order-processor-dev
 
@@ -108,6 +113,78 @@ Resources:
               - ReportBatchItemFailures
 
 
+  OrderDlqMessagesAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: orderflow-dlq-messages-dev
+      AlarmDescription: >
+        Alarm when OrderFlow has one or more messages
+        in the dead-letter queue.
+
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+
+      Dimensions:
+        - Name: QueueName
+          Value: !Ref OrderDlqName
+
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 1
+      DatapointsToAlarm: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+
+
+  OrderQueueAgeAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: orderflow-queue-age-dev
+      AlarmDescription: >
+        Alarm when the oldest OrderFlow message
+        has waited more than five minutes.
+
+      Namespace: AWS/SQS
+      MetricName: ApproximateAgeOfOldestMessage
+
+      Dimensions:
+        - Name: QueueName
+          Value: !Ref OrderQueueName
+
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 1
+      DatapointsToAlarm: 1
+      Threshold: 300
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+
+
+  OrderApiErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: orderflow-api-errors-dev
+      AlarmDescription: >
+        Alarm when the OrderFlow API Lambda
+        reports one or more errors.
+
+      Namespace: AWS/Lambda
+      MetricName: Errors
+
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref OrderApiFunction
+
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      DatapointsToAlarm: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+
+
 Outputs:
 
   OrderApiFunctionArn:
@@ -121,3 +198,15 @@ Outputs:
   OrderFlowApiUrl:
     Description: Public URL of the OrderFlow API
     Value: !Sub "https://${OrderFlowHttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}"
+
+  OrderDlqMessagesAlarmName:
+    Description: Name of the OrderFlow DLQ alarm
+    Value: !Ref OrderDlqMessagesAlarm
+
+  OrderQueueAgeAlarmName:
+    Description: Name of the OrderFlow queue age alarm
+    Value: !Ref OrderQueueAgeAlarm
+
+  OrderApiErrorsAlarmName:
+    Description: Name of the OrderFlow API errors alarm
+    Value: !Ref OrderApiErrorsAlarm
