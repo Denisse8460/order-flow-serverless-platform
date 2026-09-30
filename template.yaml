@@ -113,10 +113,18 @@ Resources:
               - ReportBatchItemFailures
 
 
+  OrderFlowAlertsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: orderflow-alerts-dev
+      DisplayName: OrderFlow Alerts
+
+
   OrderDlqMessagesAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmName: orderflow-dlq-messages-dev
+
       AlarmDescription: >
         Alarm when OrderFlow has one or more messages
         in the dead-letter queue.
@@ -132,15 +140,23 @@ Resources:
       Period: 60
       EvaluationPeriods: 1
       DatapointsToAlarm: 1
+
       Threshold: 1
       ComparisonOperator: GreaterThanOrEqualToThreshold
       TreatMissingData: notBreaching
+
+      AlarmActions:
+        - !Ref OrderFlowAlertsTopic
+
+      OKActions:
+        - !Ref OrderFlowAlertsTopic
 
 
   OrderQueueAgeAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmName: orderflow-queue-age-dev
+
       AlarmDescription: >
         Alarm when the oldest OrderFlow message
         has waited more than five minutes.
@@ -156,15 +172,23 @@ Resources:
       Period: 60
       EvaluationPeriods: 1
       DatapointsToAlarm: 1
+
       Threshold: 300
       ComparisonOperator: GreaterThanThreshold
       TreatMissingData: notBreaching
+
+      AlarmActions:
+        - !Ref OrderFlowAlertsTopic
+
+      OKActions:
+        - !Ref OrderFlowAlertsTopic
 
 
   OrderApiErrorsAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmName: orderflow-api-errors-dev
+
       AlarmDescription: >
         Alarm when the OrderFlow API Lambda
         reports one or more errors.
@@ -180,9 +204,16 @@ Resources:
       Period: 60
       EvaluationPeriods: 1
       DatapointsToAlarm: 1
+
       Threshold: 1
       ComparisonOperator: GreaterThanOrEqualToThreshold
       TreatMissingData: notBreaching
+
+      AlarmActions:
+        - !Ref OrderFlowAlertsTopic
+
+      OKActions:
+        - !Ref OrderFlowAlertsTopic
 
 
 Outputs:
@@ -210,3 +241,7 @@ Outputs:
   OrderApiErrorsAlarmName:
     Description: Name of the OrderFlow API errors alarm
     Value: !Ref OrderApiErrorsAlarm
+
+  OrderFlowAlertsTopicArn:
+    Description: ARN of the OrderFlow SNS alerts topic
+    Value: !Ref OrderFlowAlertsTopic
