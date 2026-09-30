@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
 
-Description: OrderFlow - Serverless order processing worker
+Description: OrderFlow - Resilient serverless order processing platform
 
 Parameters:
   DynamoDBTableName:
@@ -12,6 +12,11 @@ Parameters:
     Type: String
     Description: ARN of the existing OrderFlow SQS queue
 
+  OrderQueueUrl:
+    Type: String
+    Description: URL of the existing OrderFlow SQS queue
+
+
 Globals:
   Function:
     Runtime: python3.13
@@ -20,7 +25,51 @@ Globals:
     Architectures:
       - x86_64
 
+
 Resources:
+
+  OrderFlowHttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: "$default"
+
+
+  OrderApiFunction:
+    Type: AWS::Serverless::Function
+
+    Properties:
+      FunctionName: orderflow-api-dev
+
+      CodeUri: .lambda-package/
+
+      Handler: src.handlers.api_handler.lambda_handler
+
+      Environment:
+        Variables:
+          ORDERFLOW_REPOSITORY: dynamodb
+          ORDERFLOW_QUEUE: sqs
+          ORDERFLOW_AWS_REGION: !Ref AWS::Region
+          ORDERFLOW_DYNAMODB_TABLE: !Ref DynamoDBTableName
+          ORDERFLOW_SQS_QUEUE_URL: !Ref OrderQueueUrl
+
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref DynamoDBTableName
+
+        - Statement:
+            - Effect: Allow
+              Action:
+                - sqs:SendMessage
+              Resource: !Ref OrderQueueArn
+
+      Events:
+        HttpApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref OrderFlowHttpApi
+            PayloadFormatVersion: "2.0"
+
+
   OrderProcessorFunction:
     Type: AWS::Serverless::Function
 
@@ -58,7 +107,17 @@ Resources:
             FunctionResponseTypes:
               - ReportBatchItemFailures
 
+
 Outputs:
+
+  OrderApiFunctionArn:
+    Description: ARN of the OrderFlow API Lambda
+    Value: !GetAtt OrderApiFunction.Arn
+
   OrderProcessorFunctionArn:
     Description: ARN of the OrderFlow processor Lambda
     Value: !GetAtt OrderProcessorFunction.Arn
+
+  OrderFlowApiUrl:
+    Description: Public URL of the OrderFlow API
+    Value: !Sub "https://${OrderFlowHttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}"

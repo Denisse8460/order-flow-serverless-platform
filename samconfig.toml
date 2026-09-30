@@ -7,7 +7,7 @@ s3_prefix = "orderflow-dev"
 region = "us-east-1"
 confirm_changeset = true
 capabilities = "CAPABILITY_IAM"
-parameter_overrides = "DynamoDBTableName=\"orderflow-orders-dev\" OrderQueueArn=\"arn:aws:sqs:us-east-1:422751736534:orderflow-orders-dev\""
+parameter_overrides = "DynamoDBTableName=\"orderflow-orders-dev\" OrderQueueArn=\"arn:aws:sqs:us-east-1:422751736534:orderflow-orders-dev\" OrderQueueUrl=\"https://sqs.us-east-1.amazonaws.com/422751736534/orderflow-orders-dev\""
 image_repositories = []
 
 [default.global.parameters]
