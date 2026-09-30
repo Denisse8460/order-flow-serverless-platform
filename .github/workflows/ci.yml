@@ -1,0 +1,87 @@
+name: OrderFlow CI
+
+on:
+  push:
+    branches:
+      - main
+      - "feature/**"
+
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+
+  quality:
+    name: Tests and Code Quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: "pip"
+
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+
+      - name: Install application dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install -r requirements-lambda.txt
+
+      - name: Install development tools
+        run: |
+          pip install pytest pytest-cov ruff
+
+      - name: Run Ruff
+        run: |
+          ruff check src tests scripts
+
+      - name: Run tests with coverage
+        run: |
+          pytest -q --cov=src --cov-report=term-missing
+
+
+  sam-build:
+    name: Validate and Build SAM
+    runs-on: ubuntu-latest
+    needs: quality
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Set up AWS SAM CLI
+        uses: aws-actions/setup-sam@v2
+
+      - name: Install CloudFormation linter
+        run: |
+          pip install cfn-lint
+
+      - name: Prepare Lambda package
+        run: |
+          rm -rf .lambda-package
+          mkdir -p .lambda-package
+          cp -R src .lambda-package/src
+          cp requirements-lambda.txt .lambda-package/requirements.txt
+
+      - name: Validate SAM template
+        run: |
+          sam validate --lint --template-file template.yaml
+
+      - name: Build SAM application
+        run: |
+          sam build --template-file template.yaml --use-container
