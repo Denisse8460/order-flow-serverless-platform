@@ -1,4 +1,7 @@
+import os
+
 from fastapi import FastAPI, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.schemas import (
     OrderCreateRequest,
@@ -8,10 +11,7 @@ from src.api.schemas import (
 )
 from src.bootstrap import create_order_service
 from src.domain.order import Order, OrderItem
-from src.services.order_service import (
-    OrderNotFoundError,
-    OrderService,
-)
+from src.services.order_service import OrderNotFoundError, OrderService
 from src.services.priority_service import PriorityService
 
 
@@ -49,10 +49,30 @@ def create_app(
         version="0.1.0",
     )
 
+    allowed_origins = [
+        origin.strip()
+        for origin in os.getenv(
+            "ORDERFLOW_ALLOWED_ORIGINS",
+            (
+                "http://localhost:5173,"
+                "http://127.0.0.1:5173"
+            ),
+        ).split(",")
+        if origin.strip()
+    ]
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=allowed_origins,
+        allow_credentials=False,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
     @app.get("/health")
     def health_check():
         return {
-            "status": "healthy"
+            "status": "healthy",
         }
 
     @app.post(
@@ -104,6 +124,7 @@ def create_app(
             order = service.get_order(
                 order_id
             )
+
         except OrderNotFoundError as exc:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -125,6 +146,7 @@ def create_app(
                 order_id=order_id,
                 status=payload.status,
             )
+
         except OrderNotFoundError as exc:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
