@@ -24,6 +24,10 @@ Parameters:
     Type: String
     Default: orderflow-orders-dlq-dev
 
+  AllowedOrigins:
+    Type: String
+    Default: "http://localhost:5173,http://127.0.0.1:5173,https://main.d3ggtltr5kolu8.amplifyapp.com"
+
 
 Globals:
   Function:
@@ -58,6 +62,7 @@ Resources:
           ORDERFLOW_AWS_REGION: !Ref AWS::Region
           ORDERFLOW_DYNAMODB_TABLE: !Ref DynamoDBTableName
           ORDERFLOW_SQS_QUEUE_URL: !Ref OrderQueueUrl
+          ORDERFLOW_ALLOWED_ORIGINS: !Ref AllowedOrigins
 
       Policies:
         - DynamoDBCrudPolicy:
