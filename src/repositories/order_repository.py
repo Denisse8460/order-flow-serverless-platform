@@ -4,7 +4,6 @@ from src.domain.order import Order
 
 
 class OrderRepository(Protocol):
-
     def save(self, order: Order) -> Order:
         ...
 
@@ -12,4 +11,11 @@ class OrderRepository(Protocol):
         ...
 
     def list_all(self) -> list[Order]:
+        ...
+
+    def claim_for_processing(
+        self,
+        order_id: str,
+        lease_seconds: int = 300,
+    ) -> bool:
         ...
