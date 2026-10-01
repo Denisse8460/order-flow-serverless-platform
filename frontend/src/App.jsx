@@ -1,10 +1,38 @@
-import { useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useState,
+} from "react";
+
 import "./App.css";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
 const sleep = (milliseconds) =>
-  new Promise((resolve) => setTimeout(resolve, milliseconds));
+  new Promise((resolve) =>
+    setTimeout(resolve, milliseconds),
+  );
+
+const getStatusClass = (status) =>
+  status?.toLowerCase() ?? "";
+
+const shortOrderId = (orderId) => {
+  if (!orderId) {
+    return "—";
+  }
+
+  return `${orderId.slice(0, 8)}...`;
+};
+
+const formatDeliveryType = (deliveryType) => {
+  const values = {
+    standard: "Standard",
+    next_day: "Next Day",
+    same_day: "Same Day",
+  };
+
+  return values[deliveryType] ?? deliveryType;
+};
 
 function App() {
   const [formData, setFormData] = useState({
@@ -18,24 +46,19 @@ function App() {
 
   const [order, setOrder] = useState(null);
   const [orders, setOrders] = useState([]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isLoadingOrders, setIsLoadingOrders] = useState(false);
+  const [isSubmitting, setIsSubmitting] =
+    useState(false);
+  const [isLoadingOrders, setIsLoadingOrders] =
+    useState(false);
   const [error, setError] = useState("");
 
-  const handleChange = (event) => {
-    const { name, value, type, checked } = event.target;
-
-    setFormData((current) => ({
-      ...current,
-      [name]: type === "checkbox" ? checked : value,
-    }));
-  };
-
-  const fetchOrders = async () => {
+  const fetchOrders = useCallback(async () => {
     setIsLoadingOrders(true);
 
     try {
-      const response = await fetch(`${API_URL}/orders`);
+      const response = await fetch(
+        `${API_URL}/orders`,
+      );
 
       if (!response.ok) {
         throw new Error(
@@ -57,11 +80,28 @@ function App() {
     } finally {
       setIsLoadingOrders(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchOrders();
-  }, []);
+  }, [fetchOrders]);
+
+  const handleChange = (event) => {
+    const {
+      name,
+      value,
+      type,
+      checked,
+    } = event.target;
+
+    setFormData((current) => ({
+      ...current,
+      [name]:
+        type === "checkbox"
+          ? checked
+          : value,
+    }));
+  };
 
   const getOrder = async (orderId) => {
     const response = await fetch(
@@ -85,12 +125,14 @@ function App() {
       attempt < maxAttempts;
       attempt += 1
     ) {
-      const currentOrder = await getOrder(orderId);
+      const currentOrder =
+        await getOrder(orderId);
 
       setOrder(currentOrder);
 
       if (
-        currentOrder.status === "COMPLETED" ||
+        currentOrder.status ===
+          "COMPLETED" ||
         currentOrder.status === "FAILED"
       ) {
         await fetchOrders();
@@ -113,40 +155,54 @@ function App() {
       items: [
         {
           product_id: formData.productId,
-          quantity: Number(formData.quantity),
-          unit_price: Number(formData.unitPrice),
+          quantity: Number(
+            formData.quantity,
+          ),
+          unit_price: Number(
+            formData.unitPrice,
+          ),
         },
       ],
       is_prime: formData.isPrime,
-      delivery_type: formData.deliveryType,
+      delivery_type:
+        formData.deliveryType,
     };
 
     try {
-      const response = await fetch(`${API_URL}/orders`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+      const response = await fetch(
+        `${API_URL}/orders`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify(payload),
         },
-        body: JSON.stringify(payload),
-      });
+      );
 
       if (!response.ok) {
-        const details = await response.text();
+        const details =
+          await response.text();
 
         throw new Error(
           `Order creation failed (${response.status}): ${details}`,
         );
       }
 
-      const createdOrder = await response.json();
+      const createdOrder =
+        await response.json();
 
       setOrder(createdOrder);
 
       if (
-        createdOrder.status !== "COMPLETED" &&
+        createdOrder.status !==
+          "COMPLETED" &&
         createdOrder.status !== "FAILED"
       ) {
-        await pollOrderStatus(createdOrder.order_id);
+        await pollOrderStatus(
+          createdOrder.order_id,
+        );
       } else {
         await fetchOrders();
       }
@@ -157,48 +213,101 @@ function App() {
     }
   };
 
-  const getStatusClass = (statusValue) =>
-    statusValue?.toLowerCase() ?? "";
-
-  const shortOrderId = (orderId) =>
-    `${orderId.slice(0, 8)}...`;
-
   return (
-    <main className="app">
-      <section className="hero">
-        <div>
-          <span className="badge">AWS SERVERLESS</span>
+    <main className="app-shell">
+      <section className="hero-panel">
+        <div className="hero-main">
+          <div className="hero-labels">
+            <span className="cloud-badge">
+              AWS SERVERLESS
+            </span>
+
+            <span className="live-badge">
+              <span className="live-dot" />
+              LIVE ON AWS
+            </span>
+          </div>
 
           <h1>OrderFlow</h1>
 
-          <p>
-            Resilient serverless order processing platform
-            powered by FastAPI and AWS.
+          <p className="hero-description">
+            Resilient serverless order
+            processing platform powered by
+            FastAPI and AWS.
           </p>
+
+          <div className="tech-tags">
+            <span>FastAPI</span>
+            <span>Lambda</span>
+            <span>DynamoDB</span>
+            <span>SQS</span>
+            <span>CloudWatch</span>
+          </div>
         </div>
 
-        <div className="architecture">
-          API Gateway → Lambda → DynamoDB → SQS → Worker
+        <div className="architecture-card">
+          <p className="section-kicker">
+            EVENT-DRIVEN ARCHITECTURE
+          </p>
+
+          <div className="architecture-flow">
+            <div className="architecture-node">
+              API Gateway
+            </div>
+
+            <div className="architecture-arrow">
+              ↓
+            </div>
+
+            <div className="architecture-node emphasis">
+              FastAPI Lambda
+            </div>
+
+            <div className="architecture-branches">
+              <div>
+                <span>↙</span>
+                <strong>DynamoDB</strong>
+              </div>
+
+              <div>
+                <span>↘</span>
+                <strong>
+                  SQS → Worker Lambda
+                </strong>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
-      <section className="dashboard">
-        <div className="card">
-          <div className="card-heading">
+      <section className="dashboard-grid">
+        <article className="panel">
+          <div className="panel-header">
             <div>
-              <p className="eyebrow">NEW ORDER</p>
+              <p className="section-kicker">
+                NEW ORDER
+              </p>
+
               <h2>Create an order</h2>
             </div>
 
-            <span className="status-dot"></span>
+            <span className="panel-icon">
+              +
+            </span>
           </div>
 
-          <form onSubmit={handleSubmit}>
+          <form
+            className="order-form"
+            onSubmit={handleSubmit}
+          >
             <label>
-              Customer ID
+              <span>Customer ID</span>
+
               <input
                 name="customerId"
-                value={formData.customerId}
+                value={
+                  formData.customerId
+                }
                 onChange={handleChange}
                 placeholder="CUSTOMER-001"
                 required
@@ -206,10 +315,13 @@ function App() {
             </label>
 
             <label>
-              Product ID
+              <span>Product ID</span>
+
               <input
                 name="productId"
-                value={formData.productId}
+                value={
+                  formData.productId
+                }
                 onChange={handleChange}
                 placeholder="PRODUCT-001"
                 required
@@ -218,37 +330,46 @@ function App() {
 
             <div className="form-row">
               <label>
-                Quantity
+                <span>Quantity</span>
+
                 <input
                   name="quantity"
                   type="number"
                   min="1"
-                  value={formData.quantity}
+                  value={
+                    formData.quantity
+                  }
                   onChange={handleChange}
                   required
                 />
               </label>
 
               <label>
-                Unit price
+                <span>Unit price</span>
+
                 <input
                   name="unitPrice"
                   type="number"
                   min="0.01"
                   step="0.01"
-                  value={formData.unitPrice}
+                  value={
+                    formData.unitPrice
+                  }
                   onChange={handleChange}
-                  placeholder="899"
+                  placeholder="950.00"
                   required
                 />
               </label>
             </div>
 
             <label>
-              Delivery
+              <span>Delivery</span>
+
               <select
                 name="deliveryType"
-                value={formData.deliveryType}
+                value={
+                  formData.deliveryType
+                }
                 onChange={handleChange}
               >
                 <option value="standard">
@@ -265,95 +386,149 @@ function App() {
               </select>
             </label>
 
-            <label className="checkbox">
+            <label className="checkbox-row">
               <input
                 name="isPrime"
                 type="checkbox"
-                checked={formData.isPrime}
+                checked={
+                  formData.isPrime
+                }
                 onChange={handleChange}
               />
 
-              Prime customer
+              <span>Prime customer</span>
             </label>
 
             <button
+              className="primary-button"
               type="submit"
               disabled={isSubmitting}
             >
               {isSubmitting
-                ? "Processing..."
+                ? "Processing order..."
                 : "Create Order"}
             </button>
           </form>
 
           {error && (
-            <p className="error-message">
+            <div className="error-message">
               {error}
-            </p>
+            </div>
           )}
-        </div>
+        </article>
 
-        <div className="card status-card">
-          <p className="eyebrow">ORDER STATUS</p>
+        <article className="panel status-panel">
+          <div className="panel-header">
+            <div>
+              <p className="section-kicker">
+                REAL-TIME PROCESSING
+              </p>
+
+              <h2>Order status</h2>
+            </div>
+
+            <span className="status-light" />
+          </div>
 
           {!order ? (
-            <div className="empty-state">
-              <div className="empty-icon">⌁</div>
+            <div className="status-empty">
+              <div className="empty-symbol">
+                ◇
+              </div>
 
-              <h2>No order yet</h2>
+              <h3>No active order</h3>
 
               <p>
-                Create an order to watch OrderFlow
-                process it.
+                Create an order to watch
+                OrderFlow process it
+                asynchronously.
               </p>
             </div>
           ) : (
-            <div className="order-result">
-              <div>
-                <span>Order</span>
-
-                <strong className="order-id">
-                  {order.order_id}
-                </strong>
-              </div>
-
-              <div>
-                <span>Total</span>
-
-                <strong>
-                  ${Number(order.total).toFixed(2)}
-                </strong>
-              </div>
-
-              <div>
-                <span>Priority</span>
-
-                <strong>
-                  {order.priority_score}
-                </strong>
-              </div>
-
-              <div>
-                <span>Status</span>
-
-                <strong
-                  className={getStatusClass(
+            <>
+              <div className="current-status">
+                <span
+                  className={`status-badge ${getStatusClass(
                     order.status,
-                  )}
+                  )}`}
                 >
-                  ● {order.status}
-                </strong>
+                  <span className="status-dot" />
+
+                  {order.status}
+                </span>
+
+                <p>
+                  Processed asynchronously
+                  through Amazon SQS.
+                </p>
               </div>
-            </div>
+
+              <div className="status-details">
+                <div className="detail-wide">
+                  <span>Order ID</span>
+
+                  <strong>
+                    {order.order_id}
+                  </strong>
+                </div>
+
+                <div>
+                  <span>Total</span>
+
+                  <strong>
+                    $
+                    {Number(
+                      order.total,
+                    ).toFixed(2)}
+                  </strong>
+                </div>
+
+                <div>
+                  <span>Priority</span>
+
+                  <strong>
+                    {order.priority_score}
+                  </strong>
+                </div>
+
+                <div>
+                  <span>Delivery</span>
+
+                  <strong>
+                    {formatDeliveryType(
+                      order.delivery_type,
+                    )}
+                  </strong>
+                </div>
+
+                <div>
+                  <span>Prime</span>
+
+                  <strong>
+                    {order.is_prime
+                      ? "Yes"
+                      : "No"}
+                  </strong>
+                </div>
+              </div>
+            </>
           )}
-        </div>
+        </article>
       </section>
 
-      <section className="recent-orders">
-        <div className="recent-heading">
+      <section className="recent-panel">
+        <div className="recent-header">
           <div>
-            <p className="eyebrow">DYNAMODB</p>
+            <p className="section-kicker">
+              AMAZON DYNAMODB
+            </p>
+
             <h2>Recent orders</h2>
+
+            <p className="section-description">
+              Latest orders persisted and
+              processed by OrderFlow.
+            </p>
           </div>
 
           <button
@@ -379,6 +554,7 @@ function App() {
                 <tr>
                   <th>Order</th>
                   <th>Customer</th>
+                  <th>Delivery</th>
                   <th>Total</th>
                   <th>Priority</th>
                   <th>Status</th>
@@ -386,48 +562,83 @@ function App() {
               </thead>
 
               <tbody>
-                {orders.map((recentOrder) => (
-                  <tr key={recentOrder.order_id}>
-                    <td
-                      title={recentOrder.order_id}
-                      className="table-order-id"
+                {orders.map(
+                  (recentOrder) => (
+                    <tr
+                      key={
+                        recentOrder.order_id
+                      }
                     >
-                      {shortOrderId(
-                        recentOrder.order_id,
-                      )}
-                    </td>
-
-                    <td>
-                      {recentOrder.customer_id}
-                    </td>
-
-                    <td>
-                      $
-                      {Number(
-                        recentOrder.total,
-                      ).toFixed(2)}
-                    </td>
-
-                    <td>
-                      {recentOrder.priority_score}
-                    </td>
-
-                    <td>
-                      <span
-                        className={`status-pill ${getStatusClass(
-                          recentOrder.status,
-                        )}`}
+                      <td
+                        className="table-order-id"
+                        title={
+                          recentOrder.order_id
+                        }
                       >
-                        {recentOrder.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                        {shortOrderId(
+                          recentOrder.order_id,
+                        )}
+                      </td>
+
+                      <td>
+                        {
+                          recentOrder.customer_id
+                        }
+                      </td>
+
+                      <td>
+                        {formatDeliveryType(
+                          recentOrder.delivery_type,
+                        )}
+                      </td>
+
+                      <td>
+                        $
+                        {Number(
+                          recentOrder.total,
+                        ).toFixed(2)}
+                      </td>
+
+                      <td>
+                        <span className="priority-value">
+                          {
+                            recentOrder.priority_score
+                          }
+                        </span>
+                      </td>
+
+                      <td>
+                        <span
+                          className={`table-status ${getStatusClass(
+                            recentOrder.status,
+                          )}`}
+                        >
+                          <span className="status-dot" />
+
+                          {
+                            recentOrder.status
+                          }
+                        </span>
+                      </td>
+                    </tr>
+                  ),
+                )}
               </tbody>
             </table>
           </div>
         )}
       </section>
+
+      <footer className="footer">
+        <span>
+          OrderFlow
+        </span>
+
+        <span>
+          FastAPI · AWS Lambda ·
+          DynamoDB · SQS
+        </span>
+      </footer>
     </main>
   );
 }
