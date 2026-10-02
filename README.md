@@ -6,34 +6,28 @@ OrderFlow is a cloud-native, event-driven order processing platform built with *
 
 The project demonstrates asynchronous processing, idempotency, failure recovery, infrastructure as code, automated testing, observability and CI/CD through a production-style serverless architecture.
 
-🌐 **Live Demo:**  
+**Live Demo:**  
 https://main.d3ggtltr5kolu8.amplifyapp.com
 
----
+## Live Demo Preview
+
+![OrderFlow Dashboard](docs/images/orderflow-dashboard.png)
+
+OrderFlow provides a public React dashboard connected to the deployed AWS serverless backend.
+
+Users can create orders, monitor asynchronous processing, inspect calculated priority scores and review recently processed orders.
 
 ## Architecture
 
-```mermaid
-flowchart LR
-    USER[User] --> AMPLIFY[AWS Amplify<br/>React Frontend]
+![OrderFlow Architecture](docs/images/orderflow-architecture.png)
 
-    AMPLIFY --> APIGW[Amazon API Gateway]
-    APIGW --> API[AWS Lambda<br/>FastAPI]
+OrderFlow follows an event-driven serverless architecture.
 
-    API --> DDB[(Amazon DynamoDB)]
-    API --> SQS[Amazon SQS<br/>Order Queue]
+The React frontend is hosted on AWS Amplify and communicates with a FastAPI application running on AWS Lambda through Amazon API Gateway.
 
-    SQS --> WORKER[AWS Lambda<br/>Order Processor]
-    WORKER --> DDB
+Orders are persisted in DynamoDB and published to Amazon SQS for asynchronous processing by a separate Lambda worker.
 
-    SQS -->|Retry failures| DLQ[Dead-Letter Queue]
-
-    API --> CW[Amazon CloudWatch]
-    WORKER --> CW
-    DLQ --> CW
-
-    CW --> SNS[Amazon SNS<br/>Operational Alerts]
-```
+Failed messages can be retried and eventually routed to a Dead-Letter Queue, while CloudWatch and SNS provide operational monitoring and notifications.
 
 ### Request flow
 
@@ -82,10 +76,6 @@ COMPLETED
 ```
 
 Failed processing attempts are retried by Amazon SQS and can eventually be routed to the Dead-Letter Queue.
-
----
-
-## Key Engineering Features
 
 ### Event-driven order processing
 
@@ -156,6 +146,23 @@ SNS notification
 
 ---
 
+## Asynchronous Order Processing
+
+![Completed Order](docs/images/orderflow-completed-order-90.png)
+
+When an order is created, the API immediately persists the order and publishes an event to Amazon SQS.
+
+The frontend polls the API while the worker processes the message asynchronously.
+
+A successful lifecycle follows:
+
+```text
+PENDING
+   ↓
+PROCESSING
+   ↓
+COMPLETED
+---
 ## Order Priority
 
 OrderFlow calculates a priority score from business rules.
