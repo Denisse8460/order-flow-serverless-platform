@@ -1,71 +1,145 @@
 # OrderFlow
 
-**Resilient Serverless Order Processing Platform**
+### Resilient Serverless Order Processing Platform
 
-OrderFlow is a cloud-native, event-driven order processing platform built with **React, FastAPI and AWS Serverless services**.
+[![OrderFlow CI](https://github.com/Denisse8460/order-flow-serverless-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/Denisse8460/order-flow-serverless-platform/actions/workflows/ci.yml)
 
-The project demonstrates asynchronous processing, idempotency, failure recovery, infrastructure as code, automated testing, observability and CI/CD through a production-style serverless architecture.
+**OrderFlow** is a cloud-native, event-driven order processing platform built with **React, FastAPI, Python and AWS Serverless services**.
 
-**Live Demo:**  
-https://main.d3ggtltr5kolu8.amplifyapp.com
+It demonstrates asynchronous processing, distributed idempotency, failure recovery, observability, Infrastructure as Code, automated testing and CI/CD through a production-style architecture.
 
-## Live Demo Preview
+### Live Demo
 
-![OrderFlow Dashboard](docs/images/orderflow-dashboard.png)
-
-OrderFlow provides a public React dashboard connected to the deployed AWS serverless backend.
-
-Users can create orders, monitor asynchronous processing, inspect calculated priority scores and review recently processed orders.
-
-## Architecture
-
-![OrderFlow Architecture](docs/images/orderflow-architecture.png)
-
-OrderFlow follows an event-driven serverless architecture.
-
-The React frontend is hosted on AWS Amplify and communicates with a FastAPI application running on AWS Lambda through Amazon API Gateway.
-
-Orders are persisted in DynamoDB and published to Amazon SQS for asynchronous processing by a separate Lambda worker.
-
-Failed messages can be retried and eventually routed to a Dead-Letter Queue, while CloudWatch and SNS provide operational monitoring and notifications.
-
-### Request flow
-
-```text
-React Frontend
-      ↓
-API Gateway
-      ↓
-FastAPI Lambda
-      ├────────────→ DynamoDB
-      │
-      └────────────→ SQS
-                        ↓
-                   Worker Lambda
-                        ↓
-                     DynamoDB
-
-Failures → Retry → DLQ → CloudWatch Alarm → SNS
-```
+**https://main.d3ggtltr5kolu8.amplifyapp.com**
 
 ---
 
 ## Live Application
 
-The React dashboard allows users to create and monitor orders through the deployed AWS backend.
+![OrderFlow Dashboard](docs/images/orderflow-dashboard.png)
 
-The application supports:
+The public React dashboard communicates with the deployed AWS backend and allows users to:
 
-- Order creation
-- Prime customer flag
-- Delivery type selection
-- Automatic priority calculation
-- Asynchronous order processing
-- Real-time status polling
-- Recent order history
-- Persistent storage in DynamoDB
+- Create orders
+- Select delivery type
+- Identify Prime customers
+- Calculate order priority
+- Monitor asynchronous processing
+- View completed orders
+- Review recently processed orders
 
-Order processing follows the state model:
+The frontend is deployed with **AWS Amplify Hosting** and communicates with the backend through **Amazon API Gateway**.
+
+---
+
+# Architecture
+
+![OrderFlow Architecture](docs/images/orderflow-architecture.png)
+
+OrderFlow follows an **event-driven serverless architecture**.
+
+```mermaid
+flowchart LR
+    USER[User / Browser]
+
+    AMPLIFY[AWS Amplify Hosting<br/>React + Vite]
+
+    APIGW[Amazon API Gateway]
+
+    API[AWS Lambda<br/>FastAPI + Mangum]
+
+    DDB[(Amazon DynamoDB<br/>Orders Table)]
+
+    SQS[Amazon SQS<br/>Order Queue]
+
+    WORKER[AWS Lambda<br/>Order Processor]
+
+    DLQ[Dead-Letter Queue]
+
+    CW[Amazon CloudWatch<br/>Logs / Metrics / Alarms]
+
+    SNS[Amazon SNS<br/>Email Alerts]
+
+    USER --> AMPLIFY
+    AMPLIFY --> APIGW
+    APIGW --> API
+
+    API --> DDB
+    API --> SQS
+
+    SQS --> WORKER
+    WORKER --> DDB
+
+    SQS -. retries exhausted .-> DLQ
+
+    API -. logs .-> CW
+    WORKER -. logs .-> CW
+    DLQ -. monitoring .-> CW
+
+    CW --> SNS
+```
+
+### Main request flow
+
+```text
+User
+ ↓
+AWS Amplify
+ ↓
+React Frontend
+ ↓
+Amazon API Gateway
+ ↓
+FastAPI Lambda
+ ├──────────────→ DynamoDB
+ │
+ └──────────────→ Amazon SQS
+                       ↓
+                  Worker Lambda
+                       ↓
+                    DynamoDB
+```
+
+Failure handling:
+
+```text
+Processing failure
+      ↓
+SQS retry
+      ↓
+Retries exhausted
+      ↓
+Dead-Letter Queue
+      ↓
+CloudWatch Alarm
+      ↓
+Amazon SNS
+      ↓
+Email notification
+```
+
+---
+
+# Order Processing
+
+When the API receives a new order, it:
+
+1. Validates the request.
+2. Creates the order.
+3. Persists it in DynamoDB.
+4. Calculates its priority score.
+5. Publishes an event to Amazon SQS.
+6. Returns the created order to the client.
+
+The HTTP request therefore does not need to wait for the complete processing workflow.
+
+A separate **AWS Lambda worker** consumes the SQS event and processes the order asynchronously.
+
+---
+
+## Order Lifecycle
+
+A successfully processed order follows this lifecycle:
 
 ```text
 PENDING
@@ -75,60 +149,113 @@ PROCESSING
 COMPLETED
 ```
 
-Failed processing attempts are retried by Amazon SQS and can eventually be routed to the Dead-Letter Queue.
-
-### Event-driven order processing
-
-The API does not perform the complete order workflow synchronously.
-
-Instead, the API:
-
-```text
-1. Creates the order
-2. Persists it in DynamoDB
-3. Publishes an event to Amazon SQS
-4. Returns the order to the client
-```
-
-A separate Lambda worker consumes the queue and processes the order asynchronously.
-
-This separates request handling from background processing and improves system resilience.
+The frontend polls the API after order creation so that users can observe the asynchronous state transition.
 
 ---
 
-### Idempotent processing
+## Completed Orders
 
-Distributed systems can deliver the same message more than once.
+### Priority 70
 
-OrderFlow protects order processing using an atomic DynamoDB conditional update.
+![Completed Order Priority 70](docs/images/orderflow-completed-order-70.png)
 
-Before processing an order, the worker attempts to claim it:
+### Priority 80
+
+![Completed Order Priority 80](docs/images/orderflow-completed-order-80.png)
+
+### Priority 90
+
+![Completed Order Priority 90](docs/images/orderflow-completed-order-90.png)
+
+These tests verify that the business rules used by the priority service are being applied correctly.
+
+---
+
+# Order Priority
+
+OrderFlow calculates a numerical priority score using business rules.
+
+| Condition | Score |
+|---|---:|
+| Prime customer | +40 |
+| Same-day delivery | +30 |
+| Next-day delivery | +20 |
+| Order total ≥ $500 | +10 |
+| Order total ≥ $1,000 | +20 |
+
+### Examples
+
+| Scenario | Priority |
+|---|---:|
+| Prime + Same Day | **70** |
+| Prime + Same Day + $600 total | **80** |
+| Prime + Same Day + $1,200 total | **90** |
+
+![OrderFlow Recent Orders](docs/images/orderflow-recent-orders.png)
+
+> **Important:** OrderFlow currently uses an Amazon SQS Standard queue.  
+> SQS Standard does not guarantee priority-based ordering, so `priority_score` is currently stored as business metadata rather than being used to guarantee execution order.
+
+A future implementation could introduce multiple queues or another scheduling strategy for strict priority processing.
+
+---
+
+# Idempotent Processing
+
+Distributed messaging systems can deliver the same event more than once.
+
+To prevent duplicate processing, OrderFlow implements distributed idempotency using **DynamoDB conditional writes**.
+
+Before processing an order, the worker attempts an atomic transition:
 
 ```text
-PENDING → PROCESSING
+PENDING
+   ↓
+PROCESSING
 ```
 
 Only one worker can successfully claim the order.
 
-Duplicate messages therefore do not cause the same completed order to be processed repeatedly.
+If another worker receives a duplicate event, the DynamoDB conditional operation prevents it from processing the same order again.
 
 The implementation also supports stale processing leases so abandoned `PROCESSING` orders can eventually be retried.
 
+This provides protection against:
+
+- Duplicate SQS delivery
+- Lambda retries
+- Concurrent workers
+- Partial failures during processing
+
 ---
 
-### Retry and Dead-Letter Queue
+# Resilience and Failure Handling
 
-Amazon SQS provides automatic retry behavior when the worker fails.
+Amazon SQS automatically retries messages when the worker fails.
 
-After repeated failures, messages are moved to:
+After the configured number of attempts, messages are moved to the **Dead-Letter Queue (DLQ)**.
 
 ```text
-orderflow-orders-dlq-dev
+Order event
+    ↓
+SQS
+    ↓
+Worker Lambda
+    ↓
+Failure
+    ↓
+Retry
+    ↓
+Failure
+    ↓
+Retry
+    ↓
+Dead-Letter Queue
 ```
 
-This prevents continuously failing messages from blocking normal queue processing and preserves them for investigation.
+The failure path was tested end-to-end using intentionally invalid events.
 
-The failure path has been tested end-to-end:
+The test verified:
 
 ```text
 Invalid event
@@ -139,64 +266,20 @@ SQS retries
     ↓
 Dead-Letter Queue
     ↓
-CloudWatch alarm
+CloudWatch ALARM
     ↓
 SNS notification
 ```
 
----
-
-## Asynchronous Order Processing
-
-![Completed Order](docs/images/orderflow-completed-order-90.png)
-
-When an order is created, the API immediately persists the order and publishes an event to Amazon SQS.
-
-The frontend polls the API while the worker processes the message asynchronously.
-
-A successful lifecycle follows:
-
-```text
-PENDING
-   ↓
-PROCESSING
-   ↓
-COMPLETED
----
-## Order Priority
-
-OrderFlow calculates a priority score from business rules.
-
-```text
-Prime customer             +40
-Same-day delivery          +30
-Next-day delivery          +20
-Order total >= $500        +10
-Order total >= $1,000      +20
-```
-
-Examples:
-
-| Order | Priority |
-|---|---:|
-| Prime + Same Day | 70 |
-| Prime + Same Day + $600 total | 80 |
-| Prime + Same Day + $1,200 total | 90 |
-
-The priority score is currently stored as order metadata.
-
-> Amazon SQS Standard queues do not guarantee priority ordering.  
-> Therefore, OrderFlow does not claim that higher priority scores are processed before lower priority orders.
-
-A future implementation could use multiple queues or another scheduling strategy if strict priority processing were required.
+After removing the failed message from the DLQ, CloudWatch also returned the alarm to the `OK` state.
 
 ---
 
-## Observability
+# Observability
 
-OrderFlow emits structured JSON logs to Amazon CloudWatch.
+OrderFlow uses **Amazon CloudWatch** for application and infrastructure observability.
 
-Example events include:
+The system generates structured JSON logs such as:
 
 ```text
 order_processing_started
@@ -204,7 +287,7 @@ order_processing_completed
 order_processing_failed
 ```
 
-Logs can include contextual information such as:
+Log context can include:
 
 ```text
 order_id
@@ -212,29 +295,33 @@ message_id
 event_type
 error_type
 error_message
+```
 
-CloudWatch alarms monitor operational conditions including:
+CloudWatch alarms monitor:
 
-```text
-DLQ messages visible
-Oldest SQS message age
-API Lambda execution errors
+| Alarm | Purpose |
+|---|---|
+| DLQ messages | Detect failed messages requiring investigation |
+| Oldest queue message | Detect delayed processing |
+| API Lambda errors | Detect API execution failures |
 
-Alarm state changes are delivered through an Amazon SNS topic.
+Operational alerts are delivered through **Amazon SNS**.
 
-## REST API
+---
 
-The FastAPI backend exposes the following endpoints:
+# REST API
 
-| Method | Endpoint | Purpose |
+The backend is implemented with **FastAPI** and exposed through Amazon API Gateway.
+
+| Method | Endpoint | Description |
 |---|---|---|
 | `GET` | `/health` | Service health check |
-| `POST` | `/orders` | Create a new order |
-| `GET` | `/orders` | Retrieve orders |
-| `GET` | `/orders/{order_id}` | Retrieve one order |
+| `POST` | `/orders` | Create an order |
+| `GET` | `/orders` | Retrieve all orders |
+| `GET` | `/orders/{order_id}` | Retrieve an order |
 | `PATCH` | `/orders/{order_id}/status` | Update order status |
 
-Example order request:
+### Example request
 
 ```json
 {
@@ -249,28 +336,44 @@ Example order request:
   "is_prime": true,
   "delivery_type": "same_day"
 }
+```
 
-## Technology Stack
+### Example result
 
-| Area | Technologies |
+```text
+Total:      $600
+Priority:   80
+Status:     COMPLETED
+Delivery:   Same Day
+Prime:      Yes
+```
+
+---
+
+# Technology Stack
+
+| Layer | Technologies |
 |---|---|
 | Frontend | React, Vite, JavaScript |
 | Backend | Python, FastAPI, Mangum |
-| Compute | AWS Lambda |
 | API | Amazon API Gateway |
+| Compute | AWS Lambda |
 | Database | Amazon DynamoDB |
 | Messaging | Amazon SQS |
-| Failure handling | SQS Dead-Letter Queue |
+| Failure handling | Dead-Letter Queue |
 | Monitoring | Amazon CloudWatch |
 | Notifications | Amazon SNS |
-| Frontend hosting | AWS Amplify Hosting |
-| Infrastructure | AWS SAM, CloudFormation |
+| Hosting | AWS Amplify Hosting |
+| Infrastructure as Code | AWS SAM, CloudFormation |
 | Testing | Pytest, Pytest-Cov |
 | Code quality | Ruff |
+| Frontend quality | Lint, production build |
 | CI/CD | GitHub Actions |
 | Version control | Git, GitHub |
 
-## Project Structure
+---
+
+# Project Structure
 
 ```text
 order-flow-serverless-platform/
@@ -279,10 +382,23 @@ order-flow-serverless-platform/
 │   └── workflows/
 │       └── ci.yml
 │
+├── docs/
+│   └── images/
+│       ├── orderflow-architecture.png
+│       ├── orderflow-dashboard.png
+│       ├── orderflow-completed-order-70.png
+│       ├── orderflow-completed-order-80.png
+│       ├── orderflow-completed-order-90.png
+│       └── orderflow-recent-orders.png
+│
 ├── frontend/
 │   ├── src/
+│   │   ├── App.jsx
+│   │   ├── App.css
+│   │   ├── index.css
+│   │   └── main.jsx
 │   ├── package.json
-│   └── ...
+│   └── package-lock.json
 │
 ├── scripts/
 │
@@ -297,150 +413,277 @@ order-flow-serverless-platform/
 │
 ├── tests/
 │
+├── pytest.ini
 ├── requirements.txt
 ├── requirements-lambda.txt
+├── samconfig.toml
 ├── template.yaml
 └── README.md
+```
 
-## Automated Testing
+---
 
-The backend test suite covers domain logic, repositories, services, API behavior and worker processing.
+# Testing
 
-Run locally with:
+The backend contains more than 30 automated tests covering areas including:
 
+- Domain models
+- Priority calculation
+- Order services
+- In-memory repository
+- DynamoDB repository behavior
+- API endpoints
+- Worker processing
+- Idempotency
+- Error handling
+
+Run locally:
+
+```bash
 python -m pytest tests -q --cov=src --cov-report=term-missing
+```
 
-The project currently contains more than 30 automated backend tests.
+Code quality:
 
-Frontend validation includes:
+```bash
+ruff check src tests scripts
+```
+
+Frontend validation:
+
+```bash
+cd frontend
 
 npm run lint
 npm run build
+```
 
+---
 
-## Continuous Integration
+# Continuous Integration
 
-GitHub Actions automatically validates changes pushed to `main` and feature branches.
+Every push and pull request is validated through **GitHub Actions**.
 
-The CI pipeline performs:
+The pipeline contains three main jobs:
 
-Backend
-├── Install dependencies
-├── Ruff code quality checks
+```text
+Backend Tests and Code Quality
+│
+├── Install Python dependencies
+├── Ruff
 ├── Pytest
 └── Coverage
 
-Frontend
+
+Frontend Lint and Build
+│
 ├── npm ci
 ├── Lint
 └── Production build
 
-Infrastructure
+
+Validate and Build SAM
+│
 ├── SAM validation
-└── SAM build
+└── Container-based SAM build
+```
 
-Pull requests therefore validate application code and infrastructure before changes are merged.
+This helps prevent broken application or infrastructure changes from reaching `main`.
 
+---
 
-## Local Development
+# Local Development
 
-## Backend tests
+## Backend
 
-Create or use a Python virtual environment and install dependencies:
+From the project root:
 
+```bash
 pip install -r requirements.txt
 pip install -r requirements-lambda.txt
+```
 
-Run:
+Run the test suite:
 
+```bash
 python -m pytest tests -q
+```
+
+---
 
 ## Frontend
 
+```bash
 cd frontend
+
 npm install
 npm run dev
+```
 
 Create:
 
+```text
 frontend/.env.local
+```
 
 with:
 
+```text
 VITE_API_URL=https://your-api-id.execute-api.us-east-1.amazonaws.com
+```
 
 Then open:
 
+```text
 http://localhost:5173
+```
 
-## AWS Deployment
+---
 
-OrderFlow infrastructure is deployed with AWS SAM.
+# AWS Deployment
 
-Prepare the Lambda deployment package and validate the template before deployment.
+Infrastructure is deployed using **AWS SAM**.
 
-Example:
+Validate the SAM template:
+
+```bash
 sam validate --lint --template-file template.yaml
+```
+
+Build:
+
+```bash
 sam build --template-file template.yaml --use-container
+```
+
+Deploy:
+
+```bash
 sam deploy
+```
 
-The current development architecture uses existing DynamoDB and SQS resources whose identifiers are supplied to the SAM stack as parameters.
+The AWS backend currently uses existing DynamoDB and SQS resources supplied to the SAM stack through parameters.
 
-The React frontend is deployed independently through AWS Amplify Hosting and communicates with the API through the public API Gateway endpoint.
+The React application is deployed separately through **AWS Amplify Hosting**.
 
-## Engineering Decisions
+---
 
-OrderFlow intentionally separates HTTP request handling from background processing.
+# CORS Configuration
 
-The API Lambda focuses on validation, persistence and event publication, while the worker Lambda performs asynchronous processing.
+The FastAPI application supports configurable allowed origins through:
 
-Repository and queue abstractions keep business logic separated from AWS-specific implementations.
+```text
+ORDERFLOW_ALLOWED_ORIGINS
+```
 
-DynamoDB conditional writes provide distributed idempotency without introducing an additional locking service.
+The SAM template provides allowed origins for:
 
-SQS retries and a Dead-Letter Queue provide resilient failure handling.
+```text
+Local React development
++
+Public AWS Amplify frontend
+```
 
-Structured CloudWatch logging and operational alarms improve observability.
+This allows the deployed frontend to communicate with the API while avoiding an unrestricted browser CORS configuration.
 
-Infrastructure is version-controlled through AWS SAM, while GitHub Actions validates code and infrastructure changes automatically.
+---
 
-## Current Limitations
+# Engineering Decisions
 
-OrderFlow is a portfolio project designed to demonstrate software engineering and cloud architecture concepts.
+### Asynchronous processing
+
+Order creation and order processing are intentionally separated.
+
+The API handles:
+
+```text
+Validation
+Persistence
+Event publication
+```
+
+while the worker handles:
+
+```text
+Background processing
+State transitions
+Failure handling
+```
+
+This reduces coupling between HTTP traffic and background workloads.
+
+### Repository abstraction
+
+Business logic interacts with repository abstractions instead of directly depending on DynamoDB.
+
+This makes the application easier to test and keeps infrastructure concerns separated from domain logic.
+
+### Queue abstraction
+
+The service layer does not need to know whether events are handled by an in-memory queue or Amazon SQS.
+
+### DynamoDB idempotency
+
+Conditional writes provide atomic distributed coordination without requiring a separate locking service.
+
+### Infrastructure as Code
+
+AWS infrastructure configuration is version controlled through AWS SAM and validated by CI.
+
+### Observability
+
+Structured logs, metrics, alarms and notifications make failure behavior visible instead of silently ignoring errors.
+
+---
+
+# Current Limitations
+
+OrderFlow is a portfolio project intended to demonstrate cloud and software engineering concepts rather than operate as a commercial production platform.
 
 Current limitations include:
 
-- No authentication or authorization layer
+- No user authentication
+- No authorization layer
 - No payment processing
 - No strict priority scheduling
+- No multi-region deployment
 - Development-oriented AWS resource naming
-- Public demo intended for demonstration rather than production traffic
+- Public demo intended for portfolio traffic
 
-A production implementation would additionally require security controls, rate limiting, environment separation, secret management, cost controls and more extensive operational monitoring.
+A production implementation would additionally require controls such as authentication, authorization, rate limiting, WAF policies, environment separation, cost controls, secret management and expanded monitoring.
 
-## What This Project Demonstrates
+---
+
+# What This Project Demonstrates
 
 OrderFlow demonstrates practical experience with:
 
 ```text
-✓ Python and FastAPI
+✓ Python
+✓ FastAPI
 ✓ REST API development
-✓ React frontend development
-✓ Object-oriented and modular design
+✓ React
+✓ JavaScript
+✓ Object-oriented design
+✓ Modular architecture
 ✓ Event-driven architecture
 ✓ AWS Lambda
-✓ API Gateway
-✓ DynamoDB
+✓ Amazon API Gateway
+✓ Amazon DynamoDB
 ✓ Amazon SQS
 ✓ Dead-Letter Queues
-✓ Idempotent distributed processing
-✓ CloudWatch monitoring
+✓ Distributed idempotency
+✓ CloudWatch logs and alarms
 ✓ SNS notifications
 ✓ Infrastructure as Code
+✓ AWS SAM
+✓ CloudFormation
 ✓ Automated testing
-✓ GitHub Actions CI
+✓ CI/CD
+✓ GitHub Actions
 ✓ AWS Amplify Hosting
-✓ Git and pull-request workflows
+✓ Git branching and pull requests
+✓ Failure testing and debugging
 ```
 
 ---
@@ -449,6 +692,10 @@ OrderFlow demonstrates practical experience with:
 
 **Denisse Reyes Galicia**
 
-Computer Engineering graduate interested in Software Engineering, Data Engineering, Cloud and Artificial Intelligence.
+Computer Engineering graduate interested in:
+
+**Software Engineering · Cloud Engineering · Data Engineering · Artificial Intelligence**
 
 GitHub: [Denisse8460](https://github.com/Denisse8460)
+
+---
